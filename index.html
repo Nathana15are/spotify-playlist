@@ -2,128 +2,21 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Spotify PKCE Debug avec Erreur Détaillée</title>
-<style>
-body{font-family:Arial;text-align:center;margin:50px;position:relative;overflow:hidden;}
-input,button{padding:10px;margin:5px;width:80%;}
-button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointer;}
-#status{margin-top:20px;font-weight:bold;font-size:18px;text-align:left;white-space:pre-line;}
-.success{color:green;}
-#check{display:none; font-size:50px; color:green;}
-#reset{display:none;background:#f39c12;}
-</style>
+<title>Spotify Playlist Implicit Grant</title>
 </head>
 <body>
-<h1>Spotify PKCE Debug + Erreurs Détaillées 🎶</h1>
-<input type="text" id="clientId" placeholder="Client ID Spotify"><br>
-<input type="text" id="artist" placeholder="Nom de l'artiste"><br>
-<button id="go">Se connecter et créer playlist</button>
-<div id="status"></div>
-<div id="check">✔️</div>
-<button id="reset">Créer une autre playlist</button>
+<h1>Créer une playlist Spotify</h1>
 
-<script>
-function base64urlencode(str){return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
-async function sha256(plain){const encoder=new TextEncoder();const data=encoder.encode(plain);return crypto.subtle.digest('SHA-256',data);}
-async function generateChallenge(verifier){const hashed=await sha256(verifier);let str='';const arr=new Uint8Array(hashed);for(let b of arr){str+=String.fromCharCode(b);}return base64urlencode(str);}
+<label>Client ID Spotify :</label>
+<input type="text" id="clientId" placeholder="Entrez votre Client ID"><br><br>
 
-const go=document.getElementById("go"),
-      status=document.getElementById("status"),
-      reset=document.getElementById("reset"),
-      check=document.getElementById("check");
-const redirectUri=window.location.origin+window.location.pathname;
+<label>Nom de l’artiste :</label>
+<input type="text" id="artist" placeholder="Artiste"><br><br>
 
-// Récupération automatique du ClientID
-const savedClientId = localStorage.getItem("spotify_client_id");
-if(savedClientId) document.getElementById("clientId").value = savedClientId;
+<button id="connectBtn">Se connecter et créer playlist</button>
 
-async function handleAuthFlow(){
-  const params=new URLSearchParams(window.location.search);
-  const code=params.get("code");
-  const clientId=document.getElementById("clientId").value.trim();
-  const artist=document.getElementById("artist").value.trim();
-  const verifier=localStorage.getItem("pkce_verifier");
+<div id="message"></div>
 
-  if(!clientId){status.innerText="❌ Client ID manquant !"; return;}
-  localStorage.setItem("spotify_client_id", clientId);
-  if(!code){status.innerText="⚠️ Aucun code reçu. Cliquez sur le bouton."; return;}
-  if(!verifier){status.innerText="❌ Code verifier manquant ! Cliquez sur le bouton."; return;}
-
-  status.innerText="🔑 Échange du code contre token...";
-  try {
-    const bodyData = new URLSearchParams({
-      client_id: clientId,
-      grant_type: "authorization_code",
-      code: code,
-      redirect_uri: redirectUri,
-      code_verifier: verifier
-    });
-    const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
-      method:"POST",
-      headers:{"Content-Type":"application/x-www-form-urlencoded"},
-      body: bodyData
-    });
-    const tokenData = await tokenRes.json();
-
-    if(tokenData.access_token){
-      localStorage.removeItem("pkce_verifier");
-      status.innerText="✅ Connecté ! Création de playlist...";
-      await createPlaylist(tokenData.access_token, artist);
-      window.history.replaceState({}, document.title, redirectUri);
-    } else {
-      let errorMsg="❌ Échec du token !\n";
-      if(tokenData.error==="invalid_client") errorMsg+="➡ Client ID incorrect\n";
-      else if(tokenData.error==="invalid_grant") errorMsg+="➡ Code verifier ou Redirect URI incorrect\n";
-      else errorMsg+=`➡ ${tokenData.error}: ${tokenData.error_description || "détails non disponibles"}`;
-      status.innerText=errorMsg;
-      console.error("Token error detail:", tokenData);
-    }
-  } catch(e){status.innerText="❌ Erreur réseau : "+e.message;}
-}
-
-// Création playlist simple
-async function createPlaylist(token,artist){
-  try{
-    const headers={Authorization:"Bearer "+token,"Content-Type":"application/json"};
-    let res=await fetch("https://api.spotify.com/v1/me",{headers});
-    const me=await res.json();
-    res=await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artist)}&type=artist&limit=1`,{headers});
-    const a=(await res.json()).artists.items[0]; if(!a){status.innerText="❌ Artiste introuvable";return;}
-    res=await fetch(`https://api.spotify.com/v1/artists/${a.id}/top-tracks?market=FR`,{headers});
-    const tracks=(await res.json()).tracks.map(t=>t.uri);
-    res=await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`,{
-      method:"POST",headers,body:JSON.stringify({name:`Playlist ${a.name}`,public:true})
-    });
-    const playlist=await res.json();
-    await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,{
-      method:"POST",headers,body:JSON.stringify({uris:tracks})
-    });
-    status.innerHTML=`✅ Playlist <b>${playlist.name}</b> créée !<br><a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
-    check.style.display="inline-block";
-    reset.style.display="inline-block";
-  } catch(e){status.innerText="❌ Erreur : "+e.message;}
-}
-
-// Boutons
-go.onclick=async()=>{
-  const clientId=document.getElementById("clientId").value.trim();
-  const artist=document.getElementById("artist").value.trim();
-  if(!clientId||!artist){alert("Remplis Client ID et artiste !");return;}
-  localStorage.setItem("spotify_client_id", clientId);
-  const verifier=Math.random().toString(36).substring(2,128);
-  localStorage.setItem("pkce_verifier",verifier);
-  const challenge=await generateChallenge(verifier);
-  const authUrl="https://accounts.spotify.com/authorize?response_type=code"+
-    "&client_id="+encodeURIComponent(clientId)+
-    "&scope="+encodeURIComponent("playlist-modify-public playlist-modify-private")+
-    "&redirect_uri="+encodeURIComponent(redirectUri)+
-    "&code_challenge_method=S256"+
-    "&code_challenge="+encodeURIComponent(challenge);
-  window.location=authUrl;
-};
-reset.onclick=()=>{document.getElementById("artist").value="";status.innerText="";check.style.display="none";reset.style.display="none";};
-window.onload=handleAuthFlow;
-</script>
+<script src="script.js"></script>
 </body>
 </html>
-
