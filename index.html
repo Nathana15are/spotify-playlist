@@ -2,17 +2,21 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Spotify PKCE Playlist</title>
+<title>Spotify PKCE Auto Playlist</title>
 <style>
-body{font-family:Arial;text-align:center;margin:50px}input,button{padding:10px;margin:5px;width:80%}button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointer}#status{margin-top:20px;font-weight:bold}
+body{font-family:Arial;text-align:center;margin:50px}
+input,button{padding:10px;margin:5px;width:80%}
+button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointer}
+#status{margin-top:20px;font-weight:bold}
 </style>
 </head>
 <body>
-<h1>Spotify PKCE Playlist 🎶</h1>
+<h1>Spotify PKCE Auto Playlist 🎶</h1>
 <input type="text" id="clientId" placeholder="Client ID Spotify"><br>
 <input type="text" id="artist" placeholder="Nom de l'artiste"><br>
 <button id="go">Se connecter et créer playlist</button>
 <div id="status"></div>
+
 <script>
 // ==== Helpers PKCE ====
 function base64urlencode(str){return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
@@ -23,16 +27,15 @@ async function generateChallenge(verifier){const hashed=await sha256(verifier);l
 const go=document.getElementById("go"),status=document.getElementById("status");
 const redirectUri=window.location.origin+window.location.pathname;
 
-go.onclick=async()=>{
+async function handleAuthFlow(){
+  const params=new URLSearchParams(window.location.search);
+  const code=params.get("code");
   const clientId=document.getElementById("clientId").value.trim();
   const artist=document.getElementById("artist").value.trim();
-  if(!clientId||!artist){alert("Remplis Client ID et artiste !");return;}
-
-  // Si on a déjà un code dans l'URL, échanger contre token
-  const params=new URLSearchParams(window.location.search);
-  if(params.has("code")&&localStorage.getItem("pkce_verifier")){
-    const code=params.get("code");
+  if(code && clientId && artist){
     const verifier=localStorage.getItem("pkce_verifier");
+    if(!verifier){alert("Code verifier manquant ! Recharge la page et recommence.");return;}
+    status.innerText="🔑 Échange du code contre token...";
     const tokenRes=await fetch("https://accounts.spotify.com/api/token",{
       method:"POST",
       headers:{"Content-Type":"application/x-www-form-urlencoded"},
@@ -48,25 +51,12 @@ go.onclick=async()=>{
     if(tokenData.access_token){
       localStorage.removeItem("pkce_verifier");
       status.innerText="✅ Connecté ! Création de playlist...";
-      createPlaylist(tokenData.access_token,artist,clientId);
+      await createPlaylist(tokenData.access_token,artist,clientId);
+      // Nettoyer l'URL pour éviter de réexécuter
+      window.history.replaceState({}, document.title, redirectUri);
     } else {alert("Erreur token: "+JSON.stringify(tokenData));}
-    return;
   }
-
-  // Génération verifier/challenge
-  const verifier=Math.random().toString(36).substring(2,128);
-  localStorage.setItem("pkce_verifier",verifier);
-  const challenge=await generateChallenge(verifier);
-
-  // Redirection vers Spotify
-  const authUrl="https://accounts.spotify.com/authorize?response_type=code"+
-    "&client_id="+encodeURIComponent(clientId)+
-    "&scope="+encodeURIComponent("playlist-modify-public playlist-modify-private")+
-    "&redirect_uri="+encodeURIComponent(redirectUri)+
-    "&code_challenge_method=S256"+
-    "&code_challenge="+encodeURIComponent(challenge);
-  window.location=authUrl;
-};
+}
 
 // ==== Fonction création playlist ====
 async function createPlaylist(token,artist,clientId){
@@ -94,8 +84,28 @@ async function createPlaylist(token,artist,clientId){
     status.innerHTML=`🎉 Playlist <b>${playlist.name}</b> créée !<br><a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
   } catch(e){alert("Erreur: "+e.message);}
 }
+
+// ==== Bouton ====
+go.onclick=async()=>{
+  const clientId=document.getElementById("clientId").value.trim();
+  const artist=document.getElementById("artist").value.trim();
+  if(!clientId||!artist){alert("Remplis Client ID et artiste !");return;}
+
+  const verifier=Math.random().toString(36).substring(2,128);
+  localStorage.setItem("pkce_verifier",verifier);
+  const challenge=await generateChallenge(verifier);
+
+  const authUrl="https://accounts.spotify.com/authorize?response_type=code"+
+    "&client_id="+encodeURIComponent(clientId)+
+    "&scope="+encodeURIComponent("playlist-modify-public playlist-modify-private")+
+    "&redirect_uri="+encodeURIComponent(redirectUri)+
+    "&code_challenge_method=S256"+
+    "&code_challenge="+encodeURIComponent(challenge);
+  window.location=authUrl;
+};
+
+// ==== Auto detection après redirection ====
+window.onload=handleAuthFlow;
 </script>
 </body>
 </html>
-
-
