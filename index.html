@@ -8,6 +8,7 @@ body{font-family:Arial;text-align:center;margin:50px}
 input,button{padding:10px;margin:5px;width:80%}
 button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointer}
 #status{margin-top:20px;font-weight:bold}
+.success{color:green;}
 </style>
 </head>
 <body>
@@ -16,6 +17,7 @@ button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointe
 <input type="text" id="artist" placeholder="Nom de l'artiste"><br>
 <button id="go">Se connecter et créer playlist</button>
 <div id="status"></div>
+<button id="reset" style="display:none;background:#f39c12;">Créer une autre playlist</button>
 
 <script>
 // ==== Helpers PKCE ====
@@ -24,7 +26,7 @@ async function sha256(plain){const encoder=new TextEncoder();const data=encoder.
 async function generateChallenge(verifier){const hashed=await sha256(verifier);let str='';const arr=new Uint8Array(hashed);for(let b of arr){str+=String.fromCharCode(b);}return base64urlencode(str);}
 
 // ==== Main ====
-const go=document.getElementById("go"),status=document.getElementById("status");
+const go=document.getElementById("go"),status=document.getElementById("status"),reset=document.getElementById("reset");
 const redirectUri=window.location.origin+window.location.pathname;
 
 async function handleAuthFlow(){
@@ -52,7 +54,6 @@ async function handleAuthFlow(){
       localStorage.removeItem("pkce_verifier");
       status.innerText="✅ Connecté ! Création de playlist...";
       await createPlaylist(tokenData.access_token,artist,clientId);
-      // Nettoyer l'URL pour éviter de réexécuter
       window.history.replaceState({}, document.title, redirectUri);
     } else {alert("Erreur token: "+JSON.stringify(tokenData));}
   }
@@ -81,7 +82,9 @@ async function createPlaylist(token,artist,clientId){
       method:"POST",headers,body:JSON.stringify({uris:tracks})
     });
 
-    status.innerHTML=`🎉 Playlist <b>${playlist.name}</b> créée !<br><a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
+    status.innerHTML=`<span class="success">🎉 Playlist <b>${playlist.name}</b> créée !</span><br>
+    <a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
+    reset.style.display="inline-block";
   } catch(e){alert("Erreur: "+e.message);}
 }
 
@@ -102,6 +105,13 @@ go.onclick=async()=>{
     "&code_challenge_method=S256"+
     "&code_challenge="+encodeURIComponent(challenge);
   window.location=authUrl;
+};
+
+// ==== Bouton reset ====
+reset.onclick=()=>{
+  document.getElementById("artist").value="";
+  status.innerText="";
+  reset.style.display="none";
 };
 
 // ==== Auto detection après redirection ====
