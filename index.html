@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Playlist Spotify Automatique</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 8px; border: none; background: #1DB954; color: white; }
+    input { padding: 8px; width: 300px; margin: 5px; }
+    #status { margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Créer une Playlist Spotify 🎶</h1>
+  
+  <button id="login">Connexion à Spotify</button><br><br>
+  
+  <input type="text" id="artist" placeholder="Nom de l'artiste">
+  <button id="create">Créer la playlist</button>
+
+  <p id="status"></p>
+
+  <script>
+    // 🔑 Mets ici ton client_id récupéré sur Spotify Developer
+    const clientId = "TO4010e6bc0769401998470933049308ea";
+    // Ici on utilise l'URL actuelle comme redirect URI (donc ça marche même si tu l'héberges en ligne)
+    const redirectUri = window.location.origin + window.location.pathname; 
+    const scopes = "playlist-modify-public playlist-modify-private";
+    let accessToken = null;
+
+    // Connexion à Spotify
+    document.getElementById("login").onclick = () => {
+      const url = "https://accounts.spotify.com/authorize" +
+        "?response_type=token" +
+        "&client_id=" + encodeURIComponent(clientId) +
+        "&scope=" + encodeURIComponent(scopes) +
+        "&redirect_uri=" + encodeURIComponent(redirectUri);
+      window.location = url;
+    };
+
+    // Récupération du token
+    window.onload = () => {
+      if (window.location.hash) {
+        const hash = Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
+        accessToken = hash.access_token;
+        if (accessToken) {
+          document.getElementById("status").innerText = "✅ Connecté à Spotify";
+        }
+      }
+    };
+
+    // Création de la playlist
+    document.getElementById("create").onclick = async () => {
+      if (!accessToken) return alert("Connecte-toi d'abord !");
+      const artistName = document.getElementById("artist").value;
+      if (!artistName) return alert("Tape un artiste !");
+      
+      const headers = { Authorization: "Bearer " + accessToken };
+
+      // 1. Récupérer ton profil
+      let res = await fetch("https://api.spotify.com/v1/me", { headers });
+      const me = await res.json();
+
+      // 2. Trouver l’artiste
+      res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artistName)}&type=artist&limit=1`, { headers });
+      const artist = (await res.json()).artists.items[0];
+      if (!artist) return alert("Artiste introuvable !");
+      
+      // 3. Top tracks
+      res = await fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=FR`, { headers });
+      const tracks = (await res.json()).tracks.map(t => t.uri);
+
+      // 4. Créer une playlist
+      res = await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          name: `Playlist ${artist.name}`, 
+          description: `Top titres de ${artist.name}`, 
+          public: true 
+        })
+      });
+      const playlist = await res.json();
+
+      // 5. Ajouter les morceaux
+      await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ uris: tracks })
+      });
+
+      document.getElementById("status").innerHTML =
+        `🎉 Playlist <b>${playlist.name}</b> créée avec ${tracks.length} morceaux !<br>` +
+        `<a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
+    };
+  </script>
+</body>
+</html>
