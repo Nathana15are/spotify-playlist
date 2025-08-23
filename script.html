@@ -1,0 +1,68 @@
+// --- Récupérer token depuis URL ---
+function getAccessTokenFromHash() {
+    const hash = window.location.hash.substr(1);
+    const params = new URLSearchParams(hash);
+    return params.get("access_token");
+}
+
+// --- Créer playlist Spotify ---
+async function createPlaylist(accessToken, artist) {
+    try {
+        const userRes = await fetch("https://api.spotify.com/v1/me", {
+            headers: { "Authorization": `Bearer ${accessToken}` }
+        });
+        const userData = await userRes.json();
+
+        const playlistRes = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                name: `Playlist ${artist}`,
+                description: `Top tracks de ${artist}`,
+                public: false
+            })
+        });
+
+        const playlistData = await playlistRes.json();
+
+        document.getElementById("message").innerHTML = `
+            ✅ Playlist créée ! <br>
+            <a href="${playlistData.external_urls.spotify}" target="_blank">Voir sur Spotify</a>
+        `;
+    } catch (err) {
+        console.error(err);
+        document.getElementById("message").innerText = "❌ Erreur création playlist : " + err.message;
+    }
+}
+
+// --- Stocker l'artiste avant redirection ---
+document.getElementById("connectBtn").addEventListener("click", () => {
+    const clientId = document.getElementById("clientId").value.trim();
+    const artist = document.getElementById("artist").value.trim();
+    if (!artist) {
+        alert("Veuillez entrer un artiste");
+        return;
+    }
+
+    localStorage.setItem("artist", artist); // stockage temporaire
+    const redirectUri = window.location.origin + window.location.pathname;
+
+    const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=playlist-modify-public playlist-modify-private`;
+
+    window.location.href = authUrl;
+});
+
+// --- Vérifier token et créer playlist après redirection ---
+window.addEventListener("load", () => {
+    const accessToken = getAccessTokenFromHash();
+    const artist = localStorage.getItem("artist");
+
+    if (accessToken && artist) {
+        console.log("Access token reçu :", accessToken);
+        createPlaylist(accessToken, artist);
+        localStorage.removeItem("artist"); // nettoyage
+    }
+});
