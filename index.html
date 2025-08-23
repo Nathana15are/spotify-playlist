@@ -2,23 +2,19 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Spotify PKCE Debug Complet + Response</title>
+<title>Spotify PKCE Debug avec Erreur Détaillée</title>
 <style>
 body{font-family:Arial;text-align:center;margin:50px;position:relative;overflow:hidden;}
 input,button{padding:10px;margin:5px;width:80%;}
 button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointer;}
 #status{margin-top:20px;font-weight:bold;font-size:18px;text-align:left;white-space:pre-line;}
-.success{color:green; animation: blink 1s infinite;}
-@keyframes blink {0%,50%,100%{opacity:1;}25%,75%{opacity:0.5;}}
-#check{display:none; font-size:50px; color:green; animation: bounce 0.7s ease;}
-@keyframes bounce {0%{transform:scale(0.3);}50%{transform:scale(1.3);}100%{transform:scale(1);}}
+.success{color:green;}
+#check{display:none; font-size:50px; color:green;}
 #reset{display:none;background:#f39c12;}
-.confetti{position:absolute;font-size:20px;z-index:9999;opacity:0.9;animation-name:fall;animation-timing-function:linear;}
-@keyframes fall{0%{transform:translateY(0) rotate(0deg);}100%{transform:translateY(100vh) rotate(360deg);}}
 </style>
 </head>
 <body>
-<h1>Spotify PKCE Debug Complet + Response 🎶</h1>
+<h1>Spotify PKCE Debug + Erreurs Détaillées 🎶</h1>
 <input type="text" id="clientId" placeholder="Client ID Spotify"><br>
 <input type="text" id="artist" placeholder="Nom de l'artiste"><br>
 <button id="go">Se connecter et créer playlist</button>
@@ -26,33 +22,11 @@ button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointe
 <div id="check">✔️</div>
 <button id="reset">Créer une autre playlist</button>
 
-<audio id="sound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3" preload="auto"></audio>
-
 <script>
-// ==== Helpers PKCE ====
 function base64urlencode(str){return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 async function sha256(plain){const encoder=new TextEncoder();const data=encoder.encode(plain);return crypto.subtle.digest('SHA-256',data);}
 async function generateChallenge(verifier){const hashed=await sha256(verifier);let str='';const arr=new Uint8Array(hashed);for(let b of arr){str+=String.fromCharCode(b);}return base64urlencode(str);}
 
-// ==== Confettis notes de musique ====
-function launchConfetti(){
-  const count = 120;
-  const symbols = ["🎵","🎶","♪","♫"];
-  for(let i=0;i<count;i++){
-    const confetti = document.createElement("div");
-    confetti.className = "confetti";
-    confetti.innerText = symbols[Math.floor(Math.random()*symbols.length)];
-    confetti.style.left = Math.random()*100 + "%";
-    confetti.style.fontSize = (15 + Math.random()*15)+"px";
-    confetti.style.animationDuration = (2 + Math.random()*3)+"s";
-    confetti.style.transform = `rotate(${Math.random()*360}deg)`;
-    document.body.appendChild(confetti);
-    setTimeout(()=>confetti.remove(), 3500);
-  }
-  document.getElementById("sound").play();
-}
-
-// ==== Main ====
 const go=document.getElementById("go"),
       status=document.getElementById("status"),
       reset=document.getElementById("reset"),
@@ -70,26 +44,10 @@ async function handleAuthFlow(){
   const artist=document.getElementById("artist").value.trim();
   const verifier=localStorage.getItem("pkce_verifier");
 
-  console.log("DEBUG INFO:");
-  console.log("Client ID :", clientId);
-  console.log("Code reçu :", code);
-  console.log("Code verifier :", verifier);
-
-  if(!clientId){
-    status.innerText="❌ Client ID manquant ! Remplissez-le et cliquez sur le bouton.";
-    return;
-  }
+  if(!clientId){status.innerText="❌ Client ID manquant !"; return;}
   localStorage.setItem("spotify_client_id", clientId);
-
-  if(!code){
-    status.innerText="⚠️ Aucun code reçu. Cliquez sur le bouton pour vous connecter à Spotify.";
-    return;
-  }
-
-  if(!verifier){
-    status.innerText="❌ Code verifier manquant ! Rechargez la page et recommencez depuis le bouton.";
-    return;
-  }
+  if(!code){status.innerText="⚠️ Aucun code reçu. Cliquez sur le bouton."; return;}
+  if(!verifier){status.innerText="❌ Code verifier manquant ! Cliquez sur le bouton."; return;}
 
   status.innerText="🔑 Échange du code contre token...";
   try {
@@ -100,74 +58,61 @@ async function handleAuthFlow(){
       redirect_uri: redirectUri,
       code_verifier: verifier
     });
-    console.log("Body envoyé pour token:", Object.fromEntries(bodyData.entries()));
-
     const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
       method:"POST",
       headers:{"Content-Type":"application/x-www-form-urlencoded"},
       body: bodyData
     });
     const tokenData = await tokenRes.json();
-    console.log("Token reçu :", tokenData);
 
     if(tokenData.access_token){
       localStorage.removeItem("pkce_verifier");
       status.innerText="✅ Connecté ! Création de playlist...";
-      await createPlaylist(tokenData.access_token, artist, clientId);
+      await createPlaylist(tokenData.access_token, artist);
       window.history.replaceState({}, document.title, redirectUri);
     } else {
-      status.innerText="❌ Échec du token ! Détails complets :\n"+JSON.stringify(tokenData, null, 2);
-      console.error("Erreur token :", tokenData);
+      let errorMsg="❌ Échec du token !\n";
+      if(tokenData.error==="invalid_client") errorMsg+="➡ Client ID incorrect\n";
+      else if(tokenData.error==="invalid_grant") errorMsg+="➡ Code verifier ou Redirect URI incorrect\n";
+      else errorMsg+=`➡ ${tokenData.error}: ${tokenData.error_description || "détails non disponibles"}`;
+      status.innerText=errorMsg;
+      console.error("Token error detail:", tokenData);
     }
-  } catch(e){
-    status.innerText="❌ Erreur réseau : " + e.message;
-    console.error(e);
-  }
+  } catch(e){status.innerText="❌ Erreur réseau : "+e.message;}
 }
 
-// ==== Création playlist ====
-async function createPlaylist(token,artist,clientId){
+// Création playlist simple
+async function createPlaylist(token,artist){
   try{
     const headers={Authorization:"Bearer "+token,"Content-Type":"application/json"};
     let res=await fetch("https://api.spotify.com/v1/me",{headers});
     const me=await res.json();
-
     res=await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artist)}&type=artist&limit=1`,{headers});
-    const a=(await res.json()).artists.items[0];
-    if(!a){status.innerText="❌ Artiste introuvable";return;}
-
+    const a=(await res.json()).artists.items[0]; if(!a){status.innerText="❌ Artiste introuvable";return;}
     res=await fetch(`https://api.spotify.com/v1/artists/${a.id}/top-tracks?market=FR`,{headers});
     const tracks=(await res.json()).tracks.map(t=>t.uri);
-
     res=await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`,{
       method:"POST",headers,body:JSON.stringify({name:`Playlist ${a.name}`,public:true})
     });
     const playlist=await res.json();
-
     await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,{
       method:"POST",headers,body:JSON.stringify({uris:tracks})
     });
-
-    status.innerHTML=`<span class="success">🎉 Playlist <b>${playlist.name}</b> créée !</span><br>
-    <a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
+    status.innerHTML=`✅ Playlist <b>${playlist.name}</b> créée !<br><a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
     check.style.display="inline-block";
     reset.style.display="inline-block";
-    launchConfetti();
-  } catch(e){status.innerText="❌ Erreur : "+e.message;console.error(e);}
+  } catch(e){status.innerText="❌ Erreur : "+e.message;}
 }
 
-// ==== Bouton ====
+// Boutons
 go.onclick=async()=>{
   const clientId=document.getElementById("clientId").value.trim();
   const artist=document.getElementById("artist").value.trim();
   if(!clientId||!artist){alert("Remplis Client ID et artiste !");return;}
-
   localStorage.setItem("spotify_client_id", clientId);
-
   const verifier=Math.random().toString(36).substring(2,128);
   localStorage.setItem("pkce_verifier",verifier);
   const challenge=await generateChallenge(verifier);
-
   const authUrl="https://accounts.spotify.com/authorize?response_type=code"+
     "&client_id="+encodeURIComponent(clientId)+
     "&scope="+encodeURIComponent("playlist-modify-public playlist-modify-private")+
@@ -176,17 +121,9 @@ go.onclick=async()=>{
     "&code_challenge="+encodeURIComponent(challenge);
   window.location=authUrl;
 };
-
-// ==== Bouton reset ====
-reset.onclick=()=>{
-  document.getElementById("artist").value="";
-  status.innerText="";
-  check.style.display="none";
-  reset.style.display="none";
-};
-
-// ==== Auto detection après redirection ====
+reset.onclick=()=>{document.getElementById("artist").value="";status.innerText="";check.style.display="none";reset.style.display="none";};
 window.onload=handleAuthFlow;
 </script>
 </body>
 </html>
+
