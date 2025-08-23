@@ -12,6 +12,11 @@
 <button id="go">Créer Playlist</button>
 <div id="status"></div>
 <script>
+  https://accounts.spotify.com/authorize
+  ?response_type=token
+  &client_id=4010e6bc0769401998470933049308ea
+  &redirect_uri=https://nathana15are.github.io/spotify-playlist/
+  &scope=playlist-modify-public%20playlist-modify-private
 const go=document.getElementById("go"),status=document.getElementById("status"),redirect=window.location.origin+window.location.pathname,scopes="playlist-modify-public playlist-modify-private";
 function token(){const h=window.location.hash;if(!h)return null;const p=Object.fromEntries(new URLSearchParams(h.substring(1)));return p.access_token||null}
 go.onclick=async()=>{const c=document.getElementById("clientId").value.trim(),a=document.getElementById("artist").value.trim();if(!c||!a){alert("Remplis Client ID et artiste !");return}let t=token();if(!t){window.location="https://accounts.spotify.com/authorize?response_type=token&client_id="+encodeURIComponent(c)+"&scope="+encodeURIComponent(scopes)+"&redirect_uri="+encodeURIComponent(redirect);return}const h={Authorization:"Bearer "+t};try{let r=await fetch("https://api.spotify.com/v1/me",{headers:h}),u=await r.json();r=await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(a)}&type=artist&limit=1`,{headers:h});const art=(await r.json()).artists.items[0];if(!art){alert("Artiste introuvable !");return}r=await fetch(`https://api.spotify.com/v1/artists/${art.id}/top-tracks?market=FR`,{headers:h});const tracks=(await r.json()).tracks.map(t=>t.uri);r=await fetch(`https://api.spotify.com/v1/users/${u.id}/playlists`,{method:"POST",headers:{...h,"Content-Type":"application/json"},body:JSON.stringify({name:`Playlist ${art.name}`,public:true})});const pl=await r.json();await fetch(`https://api.spotify.com/v1/playlists/${pl.id}/tracks`,{method:"POST",headers:{...h,"Content-Type":"application/json"},body:JSON.stringify({uris:tracks})});status.innerHTML=`🎉 Playlist <b>${pl.name}</b> créée !<br><a href="${pl.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`}catch(e){alert("Erreur : "+e.message)}};
