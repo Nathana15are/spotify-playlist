@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Spotify PKCE Debug Playlist</title>
+<title>Spotify PKCE Auto ClientID</title>
 <style>
 body{font-family:Arial;text-align:center;margin:50px;position:relative;overflow:hidden;}
 input,button{padding:10px;margin:5px;width:80%;}
@@ -18,7 +18,7 @@ button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointe
 </style>
 </head>
 <body>
-<h1>Spotify PKCE Debug Playlist 🎶</h1>
+<h1>Spotify PKCE Auto ClientID 🎶</h1>
 <input type="text" id="clientId" placeholder="Client ID Spotify"><br>
 <input type="text" id="artist" placeholder="Nom de l'artiste"><br>
 <button id="go">Se connecter et créer playlist</button>
@@ -59,15 +59,26 @@ const go=document.getElementById("go"),
       check=document.getElementById("check");
 const redirectUri=window.location.origin+window.location.pathname;
 
+// Si ClientID déjà stocké, le mettre dans le champ
+const savedClientId = localStorage.getItem("spotify_client_id");
+if(savedClientId) document.getElementById("clientId").value = savedClientId;
+
 async function handleAuthFlow(){
   const params=new URLSearchParams(window.location.search);
   const code=params.get("code");
   status.innerText="🔍 Vérification du code...";
   console.log("Code reçu :", code);
 
-  const clientId=document.getElementById("clientId").value.trim();
+  let clientId=document.getElementById("clientId").value.trim();
   const artist=document.getElementById("artist").value.trim();
   const verifier=localStorage.getItem("pkce_verifier");
+
+  if(!clientId){
+    status.innerText="❌ Client ID manquant ! Remplissez-le et cliquez sur le bouton.";
+    return;
+  }
+  // Sauvegarde automatique du ClientID
+  localStorage.setItem("spotify_client_id", clientId);
 
   if(!code){
     status.innerText="⚠️ Aucun code reçu. Cliquez sur le bouton pour vous connecter à Spotify.";
@@ -146,6 +157,8 @@ go.onclick=async()=>{
   const clientId=document.getElementById("clientId").value.trim();
   const artist=document.getElementById("artist").value.trim();
   if(!clientId||!artist){alert("Remplis Client ID et artiste !");return;}
+
+  localStorage.setItem("spotify_client_id", clientId);
 
   const verifier=Math.random().toString(36).substring(2,128);
   localStorage.setItem("pkce_verifier",verifier);
