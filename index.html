@@ -8,6 +8,7 @@
     button { padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 8px; border: none; background: #1DB954; color: white; }
     input { padding: 8px; width: 300px; margin: 5px; }
     #status { margin-top: 20px; font-weight: bold; }
+    .error { color: red; }
   </style>
 </head>
 <body>
@@ -21,15 +22,22 @@
   <p id="status"></p>
 
   <script>
-    // 🔑 Mets ici ton client_id récupéré sur Spotify Developer
-    const clientId = TO4010e6bc0769401998470933049308ea
-    // Ici on utilise l'URL actuelle comme redirect URI (donc ça marche même si tu l'héberges en ligne)
+    // ⚠️ Mets ton vrai client_id ici (pas le secret !)
+    const clientId = "4010e6bc0769401998470933049308ea"; 
     const redirectUri = window.location.origin + window.location.pathname; 
     const scopes = "playlist-modify-public playlist-modify-private";
     let accessToken = null;
 
-    // Connexion à Spotify
+    function showError(msg) {
+      document.getElementById("status").innerHTML = `<span class="error">❌ ${msg}</span>`;
+    }
+
+    // Connexion
     document.getElementById("login").onclick = () => {
+      if (!clientId || clientId === "4010e6bc0769401998470933049308ea") {
+        showError("Tu dois d’abord mettre ton vrai Client ID Spotify dans le code !");
+        return;
+      }
       const url = "https://accounts.spotify.com/authorize" +
         "?response_type=token" +
         "&client_id=" + encodeURIComponent(clientId) +
@@ -41,57 +49,68 @@
     // Récupération du token
     window.onload = () => {
       if (window.location.hash) {
-        const hash = Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
-        accessToken = hash.access_token;
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        if (params.get("error")) {
+          // Si Spotify renvoie une erreur
+          showError(`Erreur Spotify : ${params.get("error")}. Vérifie ton Client ID et ton Redirect URI dans le dashboard.`);
+          return;
+        }
+        accessToken = params.get("access_token");
         if (accessToken) {
           document.getElementById("status").innerText = "✅ Connecté à Spotify";
         }
       }
     };
 
-    // Création de la playlist
+    // Création playlist
     document.getElementById("create").onclick = async () => {
-      if (!accessToken) return alert("Connecte-toi d'abord !");
+      if (!accessToken) return showError("Connecte-toi d'abord !");
       const artistName = document.getElementById("artist").value;
-      if (!artistName) return alert("Tape un artiste !");
+      if (!artistName) return showError("Tape un artiste !");
       
       const headers = { Authorization: "Bearer " + accessToken };
 
-      // 1. Récupérer ton profil
-      let res = await fetch("https://api.spotify.com/v1/me", { headers });
-      const me = await res.json();
+      try {
+        // 1. Profil utilisateur
+        let res = await fetch("https://api.spotify.com/v1/me", { headers });
+        if (!res.ok) throw new Error("Impossible de récupérer ton profil (token invalide ?)");
+        const me = await res.json();
 
-      // 2. Trouver l’artiste
-      res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artistName)}&type=artist&limit=1`, { headers });
-      const artist = (await res.json()).artists.items[0];
-      if (!artist) return alert("Artiste introuvable !");
-      
-      // 3. Top tracks
-      res = await fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=FR`, { headers });
-      const tracks = (await res.json()).tracks.map(t => t.uri);
+        // 2. Trouver l’artiste
+        res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artistName)}&type=artist&limit=1`, { headers });
+        const search = await res.json();
+        const artist = search.artists.items[0];
+        if (!artist) return showError("Artiste introuvable !");
+        
+        // 3. Top tracks
+        res = await fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=FR`, { headers });
+        const tracks = (await res.json()).tracks.map(t => t.uri);
 
-      // 4. Créer une playlist
-      res = await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          name: `Playlist ${artist.name}`, 
-          description: `Top titres de ${artist.name}`, 
-          public: true 
-        })
-      });
-      const playlist = await res.json();
+        // 4. Créer playlist
+        res = await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`, {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            name: `Playlist ${artist.name}`, 
+            description: `Top titres de ${artist.name}`, 
+            public: true 
+          })
+        });
+        const playlist = await res.json();
 
-      // 5. Ajouter les morceaux
-      await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ uris: tracks })
-      });
+        // 5. Ajouter morceaux
+        await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ uris: tracks })
+        });
 
-      document.getElementById("status").innerHTML =
-        `🎉 Playlist <b>${playlist.name}</b> créée avec ${tracks.length} morceaux !<br>` +
-        `<a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
+        document.getElementById("status").innerHTML =
+          `🎉 Playlist <b>${playlist.name}</b> créée avec ${tracks.length} morceaux !<br>` +
+          `<a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
+      } catch (err) {
+        showError(err.message);
+      }
     };
   </script>
 </body>
