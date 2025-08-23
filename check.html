@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Vérification Client ID Spotify</title>
+  <style>
+    body { font-family: Arial; max-width: 600px; margin: 40px auto; }
+    input, button { padding: 8px; margin: 5px; }
+    .error { color: red; font-weight: bold; }
+    .ok { color: green; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Vérification Client ID & Redirect URI Spotify</h1>
+  <p>Assure-toi que ton Client ID et Redirect URI sont corrects.</p>
+
+  <input type="text" id="clientId" placeholder="Ton Client ID">
+  <input type="text" id="redirectUri" placeholder="Redirect URI" value="">
+  <button id="check">Vérifier</button>
+
+  <p id="result"></p>
+
+  <script>
+    document.getElementById("redirectUri").value = window.location.origin + window.location.pathname;
+
+    document.getElementById("check").onclick = () => {
+      const clientId = document.getElementById("clientId").value.trim();
+      const redirectUri = document.getElementById("redirectUri").value.trim();
+      const resultEl = document.getElementById("result");
+      resultEl.innerHTML = "";
+
+      if (!clientId) {
+        resultEl.innerHTML = '<span class="error">❌ Client ID vide</span>';
+        return;
+      }
+
+      // Vérifie longueur typique Client ID Spotify (32 caractères hexadécimaux)
+      if (!/^[0-9a-f]{32}$/.test(clientId)) {
+        resultEl.innerHTML = '<span class="error">❌ Client ID invalide (doit être 32 caractères hexadécimaux)</span>';
+        return;
+      }
+
+      // Vérifie que Redirect URI commence par https:// ou http://
+      if (!/^https?:\/\/.+/.test(redirectUri)) {
+        resultEl.innerHTML = '<span class="error">❌ Redirect URI invalide (doit commencer par http:// ou https://)</span>';
+        return;
+      }
+
+      resultEl.innerHTML = '<span class="ok">✅ Client ID et Redirect URI semblent corrects</span>';
+      console.log("Client ID:", clientId);
+      console.log("Redirect URI:", redirectUri);
+      console.log("Tu peux maintenant utiliser ce Client ID et Redirect URI dans ton script Spotify.");
+    };
+  </script>
+</body>
+</html>
