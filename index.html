@@ -2,12 +2,12 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Spotify PKCE Auto ClientID</title>
+<title>Spotify PKCE Debug Complet + Response</title>
 <style>
 body{font-family:Arial;text-align:center;margin:50px;position:relative;overflow:hidden;}
 input,button{padding:10px;margin:5px;width:80%;}
 button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointer;}
-#status{margin-top:20px;font-weight:bold;font-size:18px;}
+#status{margin-top:20px;font-weight:bold;font-size:18px;text-align:left;white-space:pre-line;}
 .success{color:green; animation: blink 1s infinite;}
 @keyframes blink {0%,50%,100%{opacity:1;}25%,75%{opacity:0.5;}}
 #check{display:none; font-size:50px; color:green; animation: bounce 0.7s ease;}
@@ -18,7 +18,7 @@ button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointe
 </style>
 </head>
 <body>
-<h1>Spotify PKCE Auto ClientID 🎶</h1>
+<h1>Spotify PKCE Debug Complet + Response 🎶</h1>
 <input type="text" id="clientId" placeholder="Client ID Spotify"><br>
 <input type="text" id="artist" placeholder="Nom de l'artiste"><br>
 <button id="go">Se connecter et créer playlist</button>
@@ -59,25 +59,26 @@ const go=document.getElementById("go"),
       check=document.getElementById("check");
 const redirectUri=window.location.origin+window.location.pathname;
 
-// Si ClientID déjà stocké, le mettre dans le champ
+// Récupération automatique du ClientID
 const savedClientId = localStorage.getItem("spotify_client_id");
 if(savedClientId) document.getElementById("clientId").value = savedClientId;
 
 async function handleAuthFlow(){
   const params=new URLSearchParams(window.location.search);
   const code=params.get("code");
-  status.innerText="🔍 Vérification du code...";
-  console.log("Code reçu :", code);
-
-  let clientId=document.getElementById("clientId").value.trim();
+  const clientId=document.getElementById("clientId").value.trim();
   const artist=document.getElementById("artist").value.trim();
   const verifier=localStorage.getItem("pkce_verifier");
+
+  console.log("DEBUG INFO:");
+  console.log("Client ID :", clientId);
+  console.log("Code reçu :", code);
+  console.log("Code verifier :", verifier);
 
   if(!clientId){
     status.innerText="❌ Client ID manquant ! Remplissez-le et cliquez sur le bouton.";
     return;
   }
-  // Sauvegarde automatique du ClientID
   localStorage.setItem("spotify_client_id", clientId);
 
   if(!code){
@@ -86,22 +87,25 @@ async function handleAuthFlow(){
   }
 
   if(!verifier){
-    status.innerText="❌ Code verifier manquant ! Rechargez la page et recommencez.";
+    status.innerText="❌ Code verifier manquant ! Rechargez la page et recommencez depuis le bouton.";
     return;
   }
 
   status.innerText="🔑 Échange du code contre token...";
   try {
+    const bodyData = new URLSearchParams({
+      client_id: clientId,
+      grant_type: "authorization_code",
+      code: code,
+      redirect_uri: redirectUri,
+      code_verifier: verifier
+    });
+    console.log("Body envoyé pour token:", Object.fromEntries(bodyData.entries()));
+
     const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
       method:"POST",
       headers:{"Content-Type":"application/x-www-form-urlencoded"},
-      body:new URLSearchParams({
-        client_id: clientId,
-        grant_type: "authorization_code",
-        code: code,
-        redirect_uri: redirectUri,
-        code_verifier: verifier
-      })
+      body: bodyData
     });
     const tokenData = await tokenRes.json();
     console.log("Token reçu :", tokenData);
@@ -112,8 +116,8 @@ async function handleAuthFlow(){
       await createPlaylist(tokenData.access_token, artist, clientId);
       window.history.replaceState({}, document.title, redirectUri);
     } else {
-      status.innerText="❌ Erreur lors de l'échange du token. Vérifiez Client ID et code verifier.";
-      console.log("Erreur token :", tokenData);
+      status.innerText="❌ Échec du token ! Détails complets :\n"+JSON.stringify(tokenData, null, 2);
+      console.error("Erreur token :", tokenData);
     }
   } catch(e){
     status.innerText="❌ Erreur réseau : " + e.message;
