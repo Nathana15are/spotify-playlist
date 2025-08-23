@@ -2,62 +2,75 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Playlist Spotify Automatique</title>
+  <title>Spotify Playlist Debug</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; }
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; }
     button { padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 8px; border: none; background: #1DB954; color: white; }
     input { padding: 8px; width: 300px; margin: 5px; }
     #status { margin-top: 20px; font-weight: bold; }
     .error { color: red; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
   </style>
 </head>
 <body>
-  <h1>Créer une Playlist Spotify 🎶</h1>
-  
+  <h1>Spotify Playlist Debug 🛠️</h1>
+
   <button id="login">Connexion à Spotify</button><br><br>
-  
+
   <input type="text" id="artist" placeholder="Nom de l'artiste">
   <button id="create">Créer la playlist</button>
 
-  <p id="status"></p>
+  <div id="status"></div>
+  <h3>Debug Info:</h3>
+  <pre id="debug"></pre>
 
   <script>
-    // ⚠️ Mets ton vrai client_id ici (pas le secret !)
-    const clientId = "4010e6bc0769401998470933049308ea"; 
-    const redirectUri = window.location.origin + window.location.pathname; 
+    const clientId = "4010e6bc0769401998470933049308ea"; // 🔑 Mets ton vrai Client ID
+    const redirectUri = window.location.origin + window.location.pathname;
     const scopes = "playlist-modify-public playlist-modify-private";
     let accessToken = null;
 
-    function showError(msg) {
-      document.getElementById("status").innerHTML = `<span class="error">❌ ${msg}</span>`;
+    const statusEl = document.getElementById("status");
+    const debugEl = document.getElementById("debug");
+
+    function logDebug(msg) {
+      debugEl.textContent += msg + "\n";
+      console.log(msg);
     }
 
-    // Connexion
+    function showError(msg) {
+      statusEl.innerHTML = `<span class="error">❌ ${msg}</span>`;
+      logDebug(msg);
+    }
+
+    // Connexion Spotify
     document.getElementById("login").onclick = () => {
       if (!clientId || clientId === "4010e6bc0769401998470933049308ea") {
-        showError("Tu dois d’abord mettre ton vrai Client ID Spotify dans le code !");
+        showError("⚠️ Mets ton vrai Client ID dans le code !");
         return;
       }
-      const url = "https://accounts.spotify.com/authorize" +
+      const authUrl = "https://accounts.spotify.com/authorize" +
         "?response_type=token" +
         "&client_id=" + encodeURIComponent(clientId) +
         "&scope=" + encodeURIComponent(scopes) +
         "&redirect_uri=" + encodeURIComponent(redirectUri);
-      window.location = url;
+
+      logDebug("URL de connexion générée :\n" + authUrl);
+      window.location = authUrl;
     };
 
     // Récupération du token
     window.onload = () => {
       if (window.location.hash) {
-        const params = new URLSearchParams(window.location.hash.substring(1));
-        if (params.get("error")) {
-          // Si Spotify renvoie une erreur
-          showError(`Erreur Spotify : ${params.get("error")}. Vérifie ton Client ID et ton Redirect URI dans le dashboard.`);
+        const params = Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
+        if (params.error) {
+          showError(`Erreur Spotify : ${params.error}. Vérifie Client ID et Redirect URI.`);
           return;
         }
-        accessToken = params.get("access_token");
+        accessToken = params.access_token;
         if (accessToken) {
-          document.getElementById("status").innerText = "✅ Connecté à Spotify";
+          statusEl.textContent = "✅ Connecté à Spotify";
+          logDebug("Token récupéré : " + accessToken);
         }
       }
     };
@@ -67,26 +80,29 @@
       if (!accessToken) return showError("Connecte-toi d'abord !");
       const artistName = document.getElementById("artist").value;
       if (!artistName) return showError("Tape un artiste !");
-      
+
       const headers = { Authorization: "Bearer " + accessToken };
 
       try {
-        // 1. Profil utilisateur
+        logDebug("Récupération du profil utilisateur...");
         let res = await fetch("https://api.spotify.com/v1/me", { headers });
         if (!res.ok) throw new Error("Impossible de récupérer ton profil (token invalide ?)");
         const me = await res.json();
+        logDebug("Utilisateur : " + me.id);
 
-        // 2. Trouver l’artiste
+        logDebug("Recherche de l'artiste : " + artistName);
         res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artistName)}&type=artist&limit=1`, { headers });
         const search = await res.json();
+        logDebug("Résultat recherche artiste : " + JSON.stringify(search.artists.items[0], null, 2));
         const artist = search.artists.items[0];
         if (!artist) return showError("Artiste introuvable !");
-        
-        // 3. Top tracks
+
+        logDebug("Récupération top tracks...");
         res = await fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=FR`, { headers });
         const tracks = (await res.json()).tracks.map(t => t.uri);
+        logDebug("Tracks trouvés : " + tracks.join(", "));
 
-        // 4. Créer playlist
+        logDebug("Création de la playlist...");
         res = await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`, {
           method: "POST",
           headers: { ...headers, "Content-Type": "application/json" },
@@ -97,16 +113,16 @@
           })
         });
         const playlist = await res.json();
+        logDebug("Playlist créée : " + JSON.stringify(playlist, null, 2));
 
-        // 5. Ajouter morceaux
+        logDebug("Ajout des morceaux...");
         await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
           method: "POST",
           headers: { ...headers, "Content-Type": "application/json" },
           body: JSON.stringify({ uris: tracks })
         });
 
-        document.getElementById("status").innerHTML =
-          `🎉 Playlist <b>${playlist.name}</b> créée avec ${tracks.length} morceaux !<br>` +
+        statusEl.innerHTML = `🎉 Playlist <b>${playlist.name}</b> créée avec ${tracks.length} morceaux !<br>` +
           `<a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
       } catch (err) {
         showError(err.message);
