@@ -1,90 +1,21 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Spotify One-Click Playlist</title>
-  <style>
-    body { font-family: Arial; max-width: 500px; margin: 50px auto; text-align: center; }
-    input, button { padding: 10px; margin: 5px; width: 80%; }
-    button { background: #1DB954; color: white; border: none; border-radius: 8px; cursor: pointer; }
-    #status { margin-top: 20px; font-weight: bold; }
-  </style>
+<meta charset="UTF-8">
+<title>Spotify Mini Playlist</title>
+<style>body{font-family:Arial;text-align:center;margin:50px}input,button{padding:8px;margin:5px;width:80%}button{background:#1DB954;color:#fff;border:none;border-radius:8px;cursor:pointer}#status{margin-top:20px;font-weight:bold}</style>
 </head>
 <body>
-  <h1>Spotify One-Click Playlist 🎶</h1>
-  <input type="text" id="clientId" placeholder="Ton Client ID"><br>
-  <input type="text" id="artist" placeholder="Nom de l'artiste"><br>
-  <button id="go">Créer la playlist</button>
-  <div id="status"></div>
-
-  <script>
-    const goBtn = document.getElementById("go");
-    const statusEl = document.getElementById("status");
-    const redirectUri = window.location.origin + window.location.pathname;
-    const scopes = "playlist-modify-public playlist-modify-private";
-
-    function getAccessToken() {
-      if (window.location.hash) {
-        const params = Object.fromEntries(new URLSearchParams(window.location.hash.substring(1)));
-        if (params.access_token) return params.access_token;
-      }
-      return null;
-    }
-
-    goBtn.onclick = async () => {
-      const clientId = document.getElementById("clientId").value.trim();
-      const artistName = document.getElementById("artist").value.trim();
-      if (!clientId || !artistName) { alert("Remplis Client ID et artiste !"); return; }
-
-      let token = getAccessToken();
-      if (!token) {
-        // Redirige pour obtenir le token
-        const url = "https://accounts.spotify.com/authorize" +
-          "?response_type=token" +
-          "&client_id=" + encodeURIComponent(clientId) +
-          "&scope=" + encodeURIComponent(scopes) +
-          "&redirect_uri=" + encodeURIComponent(redirectUri);
-        window.location = url;
-        return;
-      }
-
-      const headers = { Authorization: "Bearer " + token };
-
-      try {
-        // Profil utilisateur
-        let res = await fetch("https://api.spotify.com/v1/me", { headers });
-        const me = await res.json();
-
-        // Recherche artiste
-        res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(artistName)}&type=artist&limit=1`, { headers });
-        const artist = (await res.json()).artists.items[0];
-        if (!artist) { alert("Artiste introuvable !"); return; }
-
-        // Top tracks
-        res = await fetch(`https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=FR`, { headers });
-        const tracks = (await res.json()).tracks.map(t => t.uri);
-
-        // Créer playlist
-        res = await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`, {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ name: `Playlist ${artist.name}`, public: true })
-        });
-        const playlist = await res.json();
-
-        // Ajouter morceaux
-        await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ uris: tracks })
-        });
-
-        statusEl.innerHTML = `🎉 Playlist <b>${playlist.name}</b> créée !<br>` +
-          `<a href="${playlist.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`;
-      } catch (err) {
-        alert("Erreur : " + err.message);
-      }
-    };
-  </script>
+<h1>Cree une playlist 🎶</h1>
+<input id="clientId" placeholder="Client ID"><br>
+<input id="artist" placeholder="Artiste"><br>
+<button id="go">Créer Playlist</button>
+<div id="status"></div>
+<script>
+const go=document.getElementById("go"),status=document.getElementById("status"),redirect=window.location.origin+window.location.pathname,scopes="playlist-modify-public playlist-modify-private";
+function token(){const h=window.location.hash;if(!h)return null;const p=Object.fromEntries(new URLSearchParams(h.substring(1)));return p.access_token||null}
+go.onclick=async()=>{const c=document.getElementById("clientId").value.trim(),a=document.getElementById("artist").value.trim();if(!c||!a){alert("Remplis Client ID et artiste !");return}let t=token();if(!t){window.location="https://accounts.spotify.com/authorize?response_type=token&client_id="+encodeURIComponent(c)+"&scope="+encodeURIComponent(scopes)+"&redirect_uri="+encodeURIComponent(redirect);return}const h={Authorization:"Bearer "+t};try{let r=await fetch("https://api.spotify.com/v1/me",{headers:h}),u=await r.json();r=await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(a)}&type=artist&limit=1`,{headers:h});const art=(await r.json()).artists.items[0];if(!art){alert("Artiste introuvable !");return}r=await fetch(`https://api.spotify.com/v1/artists/${art.id}/top-tracks?market=FR`,{headers:h});const tracks=(await r.json()).tracks.map(t=>t.uri);r=await fetch(`https://api.spotify.com/v1/users/${u.id}/playlists`,{method:"POST",headers:{...h,"Content-Type":"application/json"},body:JSON.stringify({name:`Playlist ${art.name}`,public:true})});const pl=await r.json();await fetch(`https://api.spotify.com/v1/playlists/${pl.id}/tracks`,{method:"POST",headers:{...h,"Content-Type":"application/json"},body:JSON.stringify({uris:tracks})});status.innerHTML=`🎉 Playlist <b>${pl.name}</b> créée !<br><a href="${pl.external_urls.spotify}" target="_blank">Ouvrir sur Spotify</a>`}catch(e){alert("Erreur : "+e.message)}};
+</script>
 </body>
 </html>
+
