@@ -1,0 +1,87 @@
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #0f0f0f, #1a0033);
+  color: white;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
+
+.hidden { display: none; }
+
+button {
+  margin: 10px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ff00ff, #ff6600);
+  color: white;
+  transition: transform 0.2s;
+}
+button:hover { transform: scale(1.1); }
+
+#game-container {
+  display: grid;
+  grid-template-columns: repeat(4, 80px);
+  grid-gap: 10px;
+  justify-content: center;
+  margin: 20px auto;
+}
+
+.tile {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 22px;
+  font-weight: bold;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.2);
+  animation: popIn 0.3s ease;
+}
+
+@keyframes popIn {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.rainbow {
+  font-size: 2.2em;
+  font-weight: bold;
+  background: linear-gradient(90deg, #ff0000, #ff7300, #fffb00, #48ff00,
+  #00ffd5, #002bff, #7a00ff, #ff00ab, #ff0000);
+  background-size: 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbowMove 6s linear infinite;
+  text-shadow: 0 0 20px rgba(255,255,255,0.8);
+}
+
+@keyframes rainbowMove {
+  0% { background-position: 0%; }
+  100% { background-position: 400%; }
+}
+
+#winner-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.winner-box {
+  background: linear-gradient(135deg, #ffd700, #ff8c00);
+  padding: 40px;
+  border-radius: 20px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 0 30px #ffdd33;
+  animation: popIn 0.5s ease;
+}
